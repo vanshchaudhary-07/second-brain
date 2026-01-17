@@ -5,9 +5,11 @@ import { Content, User,main } from "./db";
 import jwt from "jsonwebtoken";
 import dotenv from 'dotenv';
 dotenv.config();
-
+import cookieParser from "cookie-parser";
+import  userMiddleware  from "./middleware";
 const app=express();
 app.use(express.json());
+app.use(cookieParser());
 
 app.post("/api/v1/signup", async (req, res) => {
   const parsed = signUpSchema.safeParse(req.body);
@@ -53,7 +55,7 @@ app.post("/api/v1/signin", async(req,res)=>{
         if (!ans) {
             return res.status(403).send("wrong password entered");
         }
-        const token=jwt.sign({_id:exist._id,username:exist.username},"vansh@123",{expiresIn:30});
+        const token=jwt.sign({_id:exist._id,username:exist.username},"vansh@123",{expiresIn:3000000});
         res.cookie("token",token);
         res.status(200).send("signup succesful");
     }
@@ -62,15 +64,36 @@ app.post("/api/v1/signin", async(req,res)=>{
     }
 })
 
-app.post("/api/v1/content",async(req,res)=>{
+app.post("/api/v1/content",userMiddleware,async(req,res)=>{
     try{
-        await Content.create({type:req.body.type,link:req.body.link,title:req.body.title,tags:req.body.tags});
-        res.status(200).send("succesfully created");
+      await Content.create({
+        type: req.body.type,
+        link: req.body.link, 
+        title: req.body.title, 
+        userId: req.userId
+      });
+      res.status(200).send("succesfully created");
     }
     catch(err){
-        res.send(err);
+      res.send(err);
     }
 });
+
+app.get("/api/v1/content",userMiddleware,async(req,res)=>{
+  try{
+    if (!req.userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const result=await Content.find({
+      userId:req.userId
+    }).populate("userId","username");
+    res.json(result);
+  }
+  catch(err){
+    res.status(404).json({message:"unauthorized access"});
+  }
+})
 
 main()
 .then(()=>{
